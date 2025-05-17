@@ -1,0 +1,16 @@
+[package]
+name = "llama-tool-parser-native"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+name = "llama_tool_parser_native"
+path = "src/lib.rs"
+
+
+[dependencies]
+logos = { version = "0.15.0", features = ["debug"] }
+pyo3 = {version = "0.24.1", features = ["extension-module"]}
+pythonize = "0.24.0"
+serde = { version = "1.0.219", features = ["derive"] }

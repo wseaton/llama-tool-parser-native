@@ -1,0 +1,8 @@
+/target
+
+.claude
+.venv
+
+__pycache__
+.cpython-*
+pyproject.toml
