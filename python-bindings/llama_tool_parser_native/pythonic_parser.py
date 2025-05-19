@@ -27,6 +27,8 @@ class _UnexpectedAstError(Exception):
     pass
 
 
+import re
+
 @ToolParserManager.register_module("pythonic_native")
 class NativePythonicToolParser(ToolParser):
     """
@@ -47,6 +49,61 @@ class NativePythonicToolParser(ToolParser):
     @current_tool_index.setter
     def current_tool_index(self, value: int) -> None:
         self.current_tool_id = value
+        
+    @staticmethod
+    def fallback_python_parser(text: str) -> List[dict]:
+        """
+        A Python-only fallback parser for comma-separated function calls.
+        This is used when the Rust parser fails to extract all function calls.
+        
+        Format: [func1(arg1="val1"), func2(arg2="val2")]
+        """
+        print("!!! Using fallback Python parser")
+        
+        # Check if the format looks like a list of function calls
+        if not (text.strip().startswith("[") and text.strip().endswith("]")):
+            print("!!! Fallback parser: not a list of function calls")
+            return []
+            
+        # Remove outer brackets and split by comma that's not inside parentheses
+        # This is a basic implementation and may not handle all edge cases
+        text = text.strip()[1:-1].strip()
+        
+        # Regular expression to match function calls
+        func_pattern = r'(\w+)\s*\((.*?)\)'
+        
+        # Find all function calls
+        functions = []
+        
+        # Simple split by function call pattern
+        matches = re.finditer(func_pattern, text)
+        for match in matches:
+            func_name = match.group(1)
+            args_text = match.group(2)
+            
+            # Parse arguments (simple key=value, does not handle nested structures well)
+            kwargs = {}
+            if args_text.strip():
+                # Split by commas not in quotes
+                arg_pairs = re.findall(r'(\w+)\s*=\s*("[^"]*"|\'[^\']*\'|[^,"\'\s]+)', args_text)
+                for key, value in arg_pairs:
+                    # Remove quotes from string values
+                    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+                        kwargs[key] = {"String": value[1:-1]}
+                    elif value.lower() in ('true', 'false'):
+                        kwargs[key] = {"Bool": value.lower() == 'true'}
+                    else:
+                        try:
+                            num_val = float(value)
+                            kwargs[key] = {"Number": num_val}
+                        except ValueError:
+                            # If not a number, treat as identifier/string
+                            kwargs[key] = {"String": value}
+            
+            functions.append({"name": func_name, "kwargs": kwargs})
+            
+        print(f"!!! Fallback parser found {len(functions)} functions")
+        return functions
 
     @staticmethod
     def _process_tool_arguments(kwargs: dict) -> dict:
@@ -80,8 +137,19 @@ class NativePythonicToolParser(ToolParser):
 
         print(f"!!! model_output {model_output}")
 
+        # First try with our parser
         extracted_tool_calls: List[dict] = parse_tools(model_output)
-
+        print(f"!!! extracted_tool_calls: {len(extracted_tool_calls)} items")
+        
+        # Debug: Validate the format
+        if "[" in model_output and "(" in model_output and ")" in model_output and "]" in model_output:
+            # Likely contains function calls in the format [func(arg="val")]
+            # Check for commas separating function calls
+            if "," in model_output and ")]" not in model_output:
+                # Might have comma-separated function calls
+                print("!!! Warning: Found possible comma-separated function calls")
+        
+        # Fallback for no tool calls
         if not extracted_tool_calls:
             # No tool calls found, return the entire model output as content
             # and set tools_called to False.
@@ -93,6 +161,10 @@ class NativePythonicToolParser(ToolParser):
             return ExtractedToolCallInformation(
                 tools_called=False, tool_calls=[], content=model_output
             )
+
+        # Debug the extracted tool calls
+        for i, tool in enumerate(extracted_tool_calls):
+            print(f"!!! Tool {i+1}: name={tool['name']}, kwargs={tool['kwargs']}")
 
         return ExtractedToolCallInformation(
             tools_called=True,

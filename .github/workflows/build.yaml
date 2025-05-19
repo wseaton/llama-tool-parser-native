@@ -20,13 +20,14 @@ jobs:
         with:
           target: ${{ matrix.target }}
           maturin-version: latest
+          working-directory: python-bindings
           command: build
           manylinux: auto
           args: --release --sdist -i 3.9 3.10 3.11 3.12
       - uses: actions/upload-artifact@v4
         with:
           name: linux-wheels-${{ matrix.target }}
-          path: target/wheels/
+          path: python-bindings/target/wheels/
 
   collect-wheels:
     needs: [linux-wheels]

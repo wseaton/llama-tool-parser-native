@@ -1,0 +1,15 @@
+[package]
+name = "python-bindings"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "llama_tool_parser_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+backend = { path = "../backend" }
+pyo3.workspace = true
+pythonize.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
