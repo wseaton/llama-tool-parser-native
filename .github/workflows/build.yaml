@@ -1,0 +1,70 @@
+name: build-wheels
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  linux-wheels:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          maturin-version: latest
+          command: build
+          manylinux: auto
+          args: --release --sdist -i 3.9 3.10 3.11 3.12
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-wheels-${{ matrix.target }}
+          path: target/wheels/
+
+  collect-wheels:
+    needs: [linux-wheels]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v4
+
+      - name: Display structure of downloaded files
+        run: ls -R
+
+      - run: mkdir wheels
+      - run: mv ./linux-wheels-x86_64/* wheels
+      - run: mv ./linux-wheels-aarch64/* wheels
+
+      - name: Upload wheels as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-wheels
+          path: wheels/
+          retention-days: 7
+
+  publish-pypi:
+    needs: [collect-wheels]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+    permissions:
+      id-token: write
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: all-wheels
+          path: wheels/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: wheels/
+          verify-metadata: false
