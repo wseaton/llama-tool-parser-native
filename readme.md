@@ -3,7 +3,9 @@
 - install rust
 - install `uv`
 
-run: `uv run maturin develop`
+run: `cd python-bindings && uv run maturin develop`
+
+tests: `uv run pytest -s -v`
 
 
 2. using
@@ -17,7 +19,7 @@ vllm serve meta-llama/Llama-3.2-3B-Instruct \
             --port 8181 \
             --enable-auto-tool-choice \
             --chat-template tool_chat_template_llama3.2_pythonic.jinja \
-            --tool-parser-plugin llama_tool_parser_native.NativePythonicToolParser \
+            --tool-parser-plugin python-bindings/llama_tool_parser_native/pythonic_parser.py \ # or wherever you put this file
             --tool-call-parser pythonic_native \
             --gpu-memory-utilization 0.99 \
             --enforce-eager \

@@ -27,7 +27,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: linux-wheels-${{ matrix.target }}
-          path: python-bindings/target/wheels/
+          path: target/wheels/
 
   collect-wheels:
     needs: [linux-wheels]
