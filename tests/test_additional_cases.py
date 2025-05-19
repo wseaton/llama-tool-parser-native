@@ -34,16 +34,20 @@ def test_simple_function_calls():
 def test_nested_function_calls():
     """Test with nested function calls and complex structures."""
     code = """Some text before
+    <|python_start|>
     [execute_commands(commands=[
         [system_command(command="ls -la", timeout=30)],
         [database_query(query="SELECT * FROM users", limit=100)],
         [api_request(endpoint="/status", method="GET")]
     ])]
+    <|python_end|>
     Some text after
+    <|python_start|>
     [format_data(data=[
         [create_record(name="John", age=30, active=True)],
         [create_record(name="Alice", age=25, active=False)]
     ], output_format="json")]
+    <|python_end|>
     """
     
     start_time = time.time()

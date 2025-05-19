@@ -16,6 +16,12 @@ pub enum Token {
     #[token("True", |_| true)]
     Bool(bool),
 
+    #[token("<|python_start|>")]
+    PythonStart,
+
+    #[token("<|python_end|>")]
+    PythonEnd,
+
     #[token("[")]
     BracketOpen,
 
@@ -68,27 +74,16 @@ pub struct FunctionCall {
 
 /// Parse the input, specifically formatted for the example text
 pub fn parse_python(source: &str) -> Result<Vec<FunctionCall>> {
-    let mut result = Vec::new();
+    let mut outer_list: Vec<FunctionCall> = Vec::new();
 
     // Use a single approach to find all function calls
     // We'll use the nested function call parser which is more comprehensive
     let inner_functions = parse_nested_function_calls(source)?;
-    if !inner_functions.is_empty() {
-        result.push(Value::List(inner_functions));
-    }
-
-    let mut outer_list: Vec<FunctionCall> = Vec::new();
-    // For each value, traverse the Value ast and move the function calls to the outer list
-    for value in result.iter() {
+    
+    // Extract all function calls and flatten them
+    for value in inner_functions.iter() {
         if let Value::FunctionCall(func_call) = value {
             outer_list.push(func_call.clone());
-        }
-        if let Value::List(inner_list) = value {
-            for inner_value in inner_list.iter() {
-                if let Value::FunctionCall(func_call) = inner_value {
-                    outer_list.push(func_call.clone());
-                }
-            }
         }
     }
 
@@ -99,28 +94,47 @@ pub fn parse_python(source: &str) -> Result<Vec<FunctionCall>> {
 pub fn parse_nested_function_calls(source: &str) -> Result<Vec<Value>> {
     let mut result = Vec::new();
     let mut lexer = Token::lexer(source);
+    let mut in_python_block = false;
 
     while let Some(token) = lexer.next() {
-        if let Ok(Token::BracketOpen) = token {
-            if let Some(Ok(Token::Identifier(name))) = lexer.next() {
-                if let Some(Ok(Token::ParenOpen)) = lexer.next() {
-                    // We found a function call - parse its arguments
-                    let func_call = parse_function_with_kwargs(&mut lexer, name)?;
-
-                    // Look for closing bracket
-                    let mut found_close = false;
-                    for token in lexer.by_ref().flatten() {
-                        if token == Token::BracketClose {
-                            found_close = true;
-                            break;
+        match token {
+            Ok(Token::PythonStart) => {
+                in_python_block = true;
+                continue;
+            }
+            Ok(Token::PythonEnd) => {
+                in_python_block = false;
+                continue;
+            }
+            Ok(Token::BracketOpen) => {
+                // Only process function calls if we're either inside a Python block 
+                // or if we're processing the whole input without Python tokens
+                if in_python_block || !source.contains("<|python_start|>") {
+                    if let Some(Ok(Token::Identifier(name))) = lexer.next() {
+                        if let Some(Ok(Token::ParenOpen)) = lexer.next() {
+                            // We found a function call - parse its arguments
+                            let func_call = parse_function_with_kwargs(&mut lexer, name)?;
+        
+                            // Look for closing bracket or Python end token
+                            let mut found_close = false;
+                            for token in lexer.by_ref().flatten() {
+                                if token == Token::BracketClose {
+                                    found_close = true;
+                                    break;
+                                }
+                                if token == Token::PythonEnd {
+                                    in_python_block = false;
+                                    break;
+                                }
+                            }
+        
+                            // Add function call
+                            result.push(func_call);
                         }
-                    }
-
-                    if found_close {
-                        result.push(func_call);
                     }
                 }
             }
+            _ => continue,
         }
     }
 
@@ -155,6 +169,10 @@ pub fn parse_function_with_kwargs(lexer: &mut Lexer<'_, Token>, name: String) ->
 
     loop {
         match lexer.next() {
+            Some(Ok(Token::PythonStart)) => {
+                // Start of a new Python block
+                return Ok(Value::FunctionCall(FunctionCall { name, kwargs }));
+            }
             Some(Ok(Token::ParenClose)) => {
                 // End of arguments
                 return Ok(Value::FunctionCall(FunctionCall { name, kwargs }));
@@ -218,8 +236,8 @@ pub fn parse_function_with_kwargs(lexer: &mut Lexer<'_, Token>, name: String) ->
             Some(Ok(Token::BracketOpen)) => {
                 // We've reached a nested list - we're done with this function call
                 return Ok(Value::FunctionCall(FunctionCall { name, kwargs }));
-            }
-            None => {
+            },
+            None | Some(Ok(Token::PythonEnd))=> {
                 // End of input
                 return Ok(Value::FunctionCall(FunctionCall { name, kwargs }));
             }
