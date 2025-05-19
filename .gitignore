@@ -4,7 +4,6 @@
 .venv
 
 __pycache__
-pyproject.toml
 
 # build artifacts
 *.cpython-*.so

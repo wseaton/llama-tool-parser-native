@@ -1,0 +1,32 @@
+[project]
+name = "llama-tool-parser-native"
+version = "0.0.1"
+authors = [{ name = "Will Eaton", email= "<me@wseaton.com>" }]
+license = "MIT"
+description = "Native tool parser for llamas pythonic format"
+requires-python = ">=3.9,<=3.12"
+dependencies = [
+    "vllm>=0.8.5",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Rust",
+    "License :: OSI Approved :: MIT License",
+]
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[dependency-groups]
+dev = [
+    "ipython>=7.34.0",
+    "maturin>=1.8.6",
+    "pytest>=7.4.4",
+    "ruff>=0.11.10",
+]
+
+[tool.uv]
+override-dependencies = [
+    "triton>=3.0,<3.2; sys_platform != 'darwin'",
+]
