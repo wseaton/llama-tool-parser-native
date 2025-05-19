@@ -55,7 +55,7 @@ pub enum Token {
 }
 
 /// Simplified Python AST nodes
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Value {
     Bool(bool),
     Number(f64),
@@ -66,7 +66,7 @@ pub enum Value {
     FunctionCall(FunctionCall),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FunctionCall {
     pub name: String,
     pub kwargs: HashMap<String, Value>,
