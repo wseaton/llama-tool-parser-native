@@ -1,6 +1,6 @@
+use backend::parse_python;
 use pyo3::prelude::*;
 use pythonize::pythonize;
-use backend::parse_python;
 
 #[pyfunction(name = "parse_tools")]
 pub fn wrapped_parse_python(py: Python, source: String) -> PyResult<Bound<'_, PyAny>> {

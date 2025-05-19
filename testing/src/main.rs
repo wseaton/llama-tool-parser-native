@@ -48,3 +48,9 @@ mod tests {
         }
     }
 }
+
+fn main() {
+    // This is just a placeholder main function to make the code compile.
+    // The actual functionality is tested in the tests module.
+    println!("Run tests with `cargo test`.");
+}

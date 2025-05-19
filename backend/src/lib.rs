@@ -74,15 +74,16 @@ pub struct FunctionCall {
 
 /// Parse the input, specifically formatted for the example text
 pub fn parse_python(source: &str) -> Result<Vec<FunctionCall>> {
-    tracing::debug!("\n---- PARSE_PYTHON FUNCTION ----");
-    tracing::debug!("Source: {}", source);
     let mut outer_list: Vec<FunctionCall> = Vec::new();
 
     // Use a single approach to find all function calls
     // We'll use the nested function call parser which is more comprehensive
     let inner_functions = parse_nested_function_calls(source)?;
-    tracing::debug!("Results from nested function calls: {} items", inner_functions.len());
-    
+    tracing::debug!(
+        "Results from nested function calls: {} items",
+        inner_functions.len()
+    );
+
     // Extract all function calls and flatten them
     for (i, value) in inner_functions.iter().enumerate() {
         tracing::debug!("Processing result {}: {:?}", i, value);
@@ -116,12 +117,12 @@ pub fn parse_nested_function_calls(source: &str) -> Result<Vec<Value>> {
             }
             Ok(Token::BracketOpen) => {
                 tracing::debug!("Found BracketOpen - parsing function list");
-                
+
                 // Process the first function
                 if let Some(first_func) = parse_next_function_in_list(&mut lexer)? {
                     tracing::debug!("Parsed first function: {:?}", first_func);
                     result.push(first_func);
-                    
+
                     // Now look for comma-separated additional functions
                     loop {
                         match lexer.next() {
@@ -175,7 +176,7 @@ fn parse_next_function_in_list(lexer: &mut Lexer<'_, Token>) -> Result<Option<Va
     match lexer.next() {
         Some(Ok(Token::Identifier(name))) => {
             tracing::debug!("Found function name: {}", name);
-            
+
             // Next should be opening parenthesis
             match lexer.next() {
                 Some(Ok(Token::ParenOpen)) => {
@@ -207,7 +208,7 @@ fn parse_function_calls_in_list(
     loop {
         // Find the next identifier which should be a function name
         let mut found_function = false;
-        
+
         tracing::debug!("Looking for next function name...");
         while let Some(token) = lexer.next() {
             tracing::debug!("Token: {:?}", token);
@@ -244,20 +245,20 @@ fn parse_function_calls_in_list(
                 _ => continue,
             }
         }
-        
+
         if !found_function {
             tracing::debug!("No more functions found");
             // If we didn't find a function, we've reached the end of input
             break;
         }
-        
+
         // After parsing a function, we need to check if there's a comma (more functions)
         // or closing bracket (end of list)
         let mut next_is_comma = false;
         let mut list_ended = false;
-        
+
         tracing::debug!("Looking for comma or closing bracket...");
-        while let Some(token) = lexer.next() {
+        for token in lexer.by_ref() {
             tracing::debug!("Post-func token: {:?}", token);
             match token {
                 Ok(Token::BracketClose) => {
@@ -284,14 +285,18 @@ fn parse_function_calls_in_list(
                 }
             }
         }
-        
+
         if list_ended || !next_is_comma {
-            tracing::debug!("List ended: {}, next_is_comma: {}", list_ended, next_is_comma);
+            tracing::debug!(
+                "List ended: {}, next_is_comma: {}",
+                list_ended,
+                next_is_comma
+            );
             // If we found closing bracket or didn't find a comma, we're done
             break;
         }
     }
-    
+
     Ok(())
 }
 
@@ -308,7 +313,10 @@ pub fn handle_post_value(
             Ok(Value::Empty) // Signal to continue
         }
         Some(Ok(Token::ParenClose)) => {
-            tracing::debug!("handle_post_value: Found closing parenthesis - end of args for {}", name);
+            tracing::debug!(
+                "handle_post_value: Found closing parenthesis - end of args for {}",
+                name
+            );
             // End of arguments
             Ok(Value::FunctionCall(FunctionCall { name, kwargs }))
         }
@@ -384,7 +392,9 @@ pub fn parse_function_with_kwargs(lexer: &mut Lexer<'_, Token>, name: String) ->
                             continue;
                         }
                         Some(Ok(Token::ParenClose)) => {
-                            tracing::debug!("Found ParenClose after equals - empty parameter at end");
+                            tracing::debug!(
+                                "Found ParenClose after equals - empty parameter at end"
+                            );
                             // Empty parameter at the end (key=))
                             kwargs.insert(key, Value::Empty);
                             return Ok(Value::FunctionCall(FunctionCall { name, kwargs }));
@@ -407,7 +417,7 @@ pub fn parse_function_with_kwargs(lexer: &mut Lexer<'_, Token>, name: String) ->
                 tracing::debug!("Found BracketOpen in function args - nested list");
                 // We've reached a nested list - we're done with this function call
                 return Ok(Value::FunctionCall(FunctionCall { name, kwargs }));
-            },
+            }
             None => {
                 tracing::debug!("Reached end of input in function args");
                 // End of input
@@ -426,4 +436,3 @@ pub fn parse_function_with_kwargs(lexer: &mut Lexer<'_, Token>, name: String) ->
         }
     }
 }
-

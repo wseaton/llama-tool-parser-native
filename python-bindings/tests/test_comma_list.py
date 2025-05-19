@@ -5,7 +5,7 @@ import time
 def test_comma_separated_function_calls():
     """Test with comma-separated function calls in a single list."""
     # Simplified test case with just two function calls for easier debugging
-    code = "[func1(arg1=\"val1\"), func2(arg2=\"val2\")]"
+    code = '[func1(arg1="val1"), func2(arg2="val2")]'
 
     print(f"Simplified test code: {code}")
     start_time = time.time()
@@ -17,7 +17,7 @@ def test_comma_separated_function_calls():
     # Assertions
     assert isinstance(tools, list)
     assert len(tools) == 2
-    
+
     # Only if first test passes, try the original complex case
     if len(tools) == 2:
         print("\nNow testing full example:")
@@ -28,7 +28,7 @@ def test_comma_separated_function_calls():
         complex_tools = parse_tools(complex_code)
         print(f"Complex result: {complex_tools}")
         assert len(complex_tools) == 4
-        
+
         # Check for specific tool names
         tool_names = [tool["name"] for tool in complex_tools]
         assert "get_weather_forecast" in tool_names
