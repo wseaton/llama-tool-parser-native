@@ -5,4 +5,7 @@
 
 __pycache__
 pyproject.toml
+
+# build artifacts
 *.cpython-*.so
+*.abi3.so
