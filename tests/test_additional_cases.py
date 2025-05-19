@@ -1,6 +1,7 @@
 from llama_tool_parser_native import parse_tools
 import time
 
+
 def test_simple_function_calls():
     """Test with various simple function calls in llama format."""
     code = """
@@ -10,26 +11,27 @@ def test_simple_function_calls():
     [send_email(to="user@example.com", subject="Meeting Summary", body="Here are the action items from our meeting.")]
     [calculate(expression="5 * (3 + 2)", format="decimal")]
     """
-    
+
     start_time = time.time()
     tools = parse_tools(code)
     end_time = time.time()
     print(f"Parsing took {(end_time - start_time) * 1000:.2f} milliseconds")
     print(tools)
-    
+
     # Assertions
     assert isinstance(tools, list)
     assert len(tools) == 5
-    
+
     # Check contents of first tool
     assert tools[0]["name"] == "get_weather"
-    assert tools[0]["kwargs"]["location"] ==  {"String": "San Francisco"}
+    assert tools[0]["kwargs"]["location"] == {"String": "San Francisco"}
     assert tools[0]["kwargs"]["unit"] == {"String": "celsius"}
-    
+
     # Check contents of third tool
     assert tools[2]["name"] == "search_web"
     assert tools[2]["kwargs"]["query"] == {"String": "rust programming language"}
-    assert tools[2]["kwargs"]["max_results"] == {"Number": 10.0 }
+    assert tools[2]["kwargs"]["max_results"] == {"Number": 10.0}
+
 
 def test_nested_function_calls():
     """Test with nested function calls and complex structures."""
@@ -49,17 +51,18 @@ def test_nested_function_calls():
     ], output_format="json")]
     <|python_end|>
     """
-    
+
     start_time = time.time()
     tools = parse_tools(code)
     end_time = time.time()
     print(f"Parsing took {(end_time - start_time) * 1000:.2f} milliseconds")
     print(tools)
-    
+
     # Assertions
     assert isinstance(tools, list)
     # The function should extract individual function calls
     assert len(tools) > 2
+
 
 def test_edge_cases():
     """Test various edge cases for the parser."""
@@ -86,15 +89,16 @@ def test_edge_cases():
     [missing_closing_bracket(param="test")]
     [missing_closing_paren(param="test"]
     """
-    
+
     start_time = time.time()
     tools = parse_tools(code)
     end_time = time.time()
     print(f"Parsing took {(end_time - start_time) * 1000:.2f} milliseconds")
     print(tools)
-    
+
     # Basic assertion - we should get at least some results
     assert isinstance(tools, list)
+
 
 # Advanced test case with real-world-like formatting
 def test_realistic_llm_output():
@@ -130,18 +134,18 @@ def test_realistic_llm_output():
     
     Here are the results of my analysis...
     """
-    
+
     start_time = time.time()
     tools = parse_tools(code)
     end_time = time.time()
     print(f"Parsing took {(end_time - start_time) * 1000:.2f} milliseconds")
     print(tools)
-    
+
     # Assertions
     assert isinstance(tools, list)
     # We should have at least the main function calls
     assert len(tools) >= 3
-    
+
     # Check for specific tool names
     tool_names = [tool["name"] for tool in tools]
     assert "search_documentation" in tool_names

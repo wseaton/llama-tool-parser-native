@@ -1,18 +1,20 @@
-import ast
 import json
-import re
 from collections.abc import Sequence
-from typing import Any, Union
+from typing import Union
 
 from transformers import PreTrainedTokenizerBase
 
-from vllm.entrypoints.openai.protocol import (ChatCompletionRequest,
-                                              DeltaFunctionCall, DeltaMessage,
-                                              DeltaToolCall,
-                                              ExtractedToolCallInformation,
-                                              FunctionCall, ToolCall)
+from vllm.entrypoints.openai.protocol import (
+    ChatCompletionRequest,
+    DeltaMessage,
+    ExtractedToolCallInformation,
+    FunctionCall,
+    ToolCall,
+)
 from vllm.entrypoints.openai.tool_parsers.abstract_tool_parser import (
-    ToolParser, ToolParserManager)
+    ToolParser,
+    ToolParserManager,
+)
 from vllm.logger import init_logger
 from typing import List
 
@@ -51,7 +53,7 @@ class NativePythonicToolParser(ToolParser):
         """
         Process tool arguments to handle single-value dictionaries.
         For dictionaries with a single key-value pair, extract just the value.
-        
+
         This function recursively processes dictionaries to extract values from
         single-key dictionaries at any nesting level.
         """
@@ -70,8 +72,8 @@ class NativePythonicToolParser(ToolParser):
         return result
 
     def extract_tool_calls(
-            self, model_output: str,
-            request: ChatCompletionRequest) -> ExtractedToolCallInformation:
+        self, model_output: str, request: ChatCompletionRequest
+    ) -> ExtractedToolCallInformation:
         """
         Extract the tool calls from a complete model response.
         """
@@ -83,26 +85,31 @@ class NativePythonicToolParser(ToolParser):
         if not extracted_tool_calls:
             # No tool calls found, return the entire model output as content
             # and set tools_called to False.
-            logger.warning(
-                f"!!! no tool calls found in output:\n{model_output}\n")
+            logger.warning(f"!!! no tool calls found in output:\n{model_output}\n")
             # This is a fallback for when the regex fails to match.
             # We still want to return the model output as content.
             # This is a workaround for the case where the model output is
             # not a valid Python list of function calls.
-            return ExtractedToolCallInformation(tools_called=False,
-                                                tool_calls=[],
-                                                content=model_output)
-        
+            return ExtractedToolCallInformation(
+                tools_called=False, tool_calls=[], content=model_output
+            )
+
         return ExtractedToolCallInformation(
             tools_called=True,
             tool_calls=[
-                ToolCall(type="function",
-                            function=FunctionCall(
-                                name=tool["name"],
-                                arguments=json.dumps(self._process_tool_arguments(tool["kwargs"]))))
+                ToolCall(
+                    type="function",
+                    function=FunctionCall(
+                        name=tool["name"],
+                        arguments=json.dumps(
+                            self._process_tool_arguments(tool["kwargs"])
+                        ),
+                    ),
+                )
                 for tool in extracted_tool_calls
             ],
-            content=model_output)
+            content=model_output,
+        )
 
     def extract_tool_calls_streaming(
         self,
@@ -114,7 +121,6 @@ class NativePythonicToolParser(ToolParser):
         delta_token_ids: Sequence[int],
         request: ChatCompletionRequest,
     ) -> Union[DeltaMessage, None]:
-
         raise NotImplementedError(
             "Streaming tool call extraction is not yet implemented for NativePythonicToolParser."
         )
