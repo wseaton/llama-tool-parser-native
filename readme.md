@@ -25,3 +25,7 @@ vllm serve meta-llama/Llama-3.2-3B-Instruct \
             --enforce-eager \
             --max-model-len 32000 
 ```
+
+3. TODOS
+
+- [_] add support for streaming parsing (this should be possible with the `nom` backend)
