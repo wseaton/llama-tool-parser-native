@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 logos.workspace = true
+nom = "7.1.3"
 pyo3.workspace = true
 pythonize.workspace = true
 serde.workspace = true
