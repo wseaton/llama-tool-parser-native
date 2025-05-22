@@ -1,7 +1,7 @@
 use nom::{
     IResult, Parser,
     branch::alt,
-    bytes::complete::{tag, take_till, take_until, take_while},
+    bytes::complete::{escaped, tag, take_till, take_until, take_while},
     character::complete::{char, digit1, multispace0, one_of},
     combinator::{map, map_res, opt, recognize, value},
     multi::{many0, many1, separated_list0},
@@ -75,18 +75,65 @@ fn parse_bool(input: &str) -> IResult<&str, bool> {
     alt((value(true, tag("True")), value(false, tag("False"))))(input)
 }
 
-// Parse a string (either single or double quoted)
+// Helper function to handle escaped characters
+fn unescape_string(s: &str) -> String {
+    let mut result = String::new();
+    let mut chars = s.chars().peekable();
+    
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('\\') => result.push('\\'),
+                Some('\"') => result.push('\"'),
+                Some('\'') => result.push('\''),
+                Some('n') => result.push('\n'),
+                Some('r') => result.push('\r'),
+                Some('t') => result.push('\t'),
+                Some(other) => {
+                    // For any other escaped character, just keep it
+                    result.push(other);
+                }
+                None => {
+                    // Handle case where backslash is at the end
+                    result.push('\\');
+                }
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    
+    result
+}
+
+// Parse a string with escape sequences (either single or double quoted)
 fn parse_string(input: &str) -> IResult<&str, String> {
     alt((
-        delimited(
-            char('"'),
-            map(take_till(|c| c == '"'), |s: &str| s.to_string()),
-            char('"'),
+        // Double quoted string
+        map(
+            delimited(
+                char('"'),
+                escaped(
+                    take_while(|c| c != '"' && c != '\\'),
+                    '\\',
+                    one_of("\"\\nrt"),
+                ),
+                char('"'),
+            ),
+            unescape_string,
         ),
-        delimited(
-            char('\''),
-            map(take_till(|c| c == '\''), |s: &str| s.to_string()),
-            char('\''),
+        // Single quoted string
+        map(
+            delimited(
+                char('\''),
+                escaped(
+                    take_while(|c| c != '\'' && c != '\\'),
+                    '\\',
+                    one_of("'\\nrt"),
+                ),
+                char('\''),
+            ),
+            unescape_string,
         ),
     ))(input)
 }
@@ -115,14 +162,67 @@ fn parse_identifier(input: &str) -> IResult<&str, String> {
     )(input)
 }
 
-// Parse a value (bool, string, number, or identifier)
+// Forward declaration to handle recursive types
 fn parse_value(input: &str) -> IResult<&str, Value> {
-    alt((
-        map(parse_bool, Value::Bool),
-        map(parse_string, Value::String),
-        map(parse_number, Value::Number),
-        map(parse_identifier, Value::Identifier),
-    ))(input)
+    preceded(
+        multispace0,
+        alt((
+            map(parse_bool, Value::Bool),
+            map(parse_string, Value::String),
+            map(parse_number, Value::Number),
+            map(tag("None"), |_| Value::Empty),
+            parse_list,
+            parse_dict,
+            map(parse_identifier, Value::Identifier),
+        )),
+    )(input)
+}
+
+// Parse a list: [value1, value2, ...]
+fn parse_list(input: &str) -> IResult<&str, Value> {
+    map(
+        delimited(
+            char('['),
+            separated_list0(
+                preceded(multispace0, char(',')),
+                preceded(multispace0, parse_value),
+            ),
+            preceded(multispace0, char(']')),
+        ),
+        Value::List,
+    )(input)
+}
+
+// Parse a dict: {'key1': value1, 'key2': value2, ...}
+fn parse_dict(input: &str) -> IResult<&str, Value> {
+    // Parse a dict directly
+    delimited(
+        char('{'),
+        map(
+            separated_list0(
+                preceded(multispace0, char(',')),
+                preceded(
+                    multispace0,
+                    separated_pair(
+                        // Keys must be strings
+                        parse_string, 
+                        preceded(multispace0, char(':')), 
+                        parse_value
+                    ),
+                ),
+            ),
+            |entries| {
+                // Convert the entries to a list with alternating keys and values
+                let mut values = Vec::new();
+                for (key, value) in entries {
+                    values.push(Value::String(key));
+                    values.push(value);
+                }
+                Value::List(values)
+            },
+        ),
+        preceded(multispace0, char('}')),
+    )(input)
 }
 
 // Parse a keyword argument
