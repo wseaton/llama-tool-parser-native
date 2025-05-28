@@ -1,6 +1,6 @@
 [project]
 name = "llama-tool-parser-native"
-version = "0.0.2"
+version = "0.0.3"
 authors = [{ name = "Will Eaton", email= "<me@wseaton.com>" }]
 license = "MIT"
 description = "Native tool parser for llamas pythonic format"
