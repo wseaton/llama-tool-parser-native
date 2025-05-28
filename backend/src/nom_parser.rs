@@ -109,27 +109,27 @@ fn unescape_string(s: &str) -> String {
 // Parse a string with escape sequences (either single or double quoted)
 fn parse_string(input: &str) -> IResult<&str, String> {
     alt((
-        // Double quoted string
+        // Double quoted string - more permissive with escaped characters
         map(
             delimited(
                 char('"'),
                 escaped(
                     take_while(|c| c != '"' && c != '\\'),
                     '\\',
-                    one_of("\"\\nrt"),
+                    one_of("\"\\nrt!(){}[].;:"), // Accept common escaped characters
                 ),
                 char('"'),
             ),
             unescape_string,
         ),
-        // Single quoted string
+        // Single quoted string - more permissive with escaped characters
         map(
             delimited(
                 char('\''),
                 escaped(
                     take_while(|c| c != '\'' && c != '\\'),
                     '\\',
-                    one_of("'\\nrt"),
+                    one_of("'\\nrt!(){}[].;:"), // Accept common escaped characters
                 ),
                 char('\''),
             ),
@@ -282,11 +282,70 @@ pub fn parse_python_nom(input: &str) -> IResult<&str, Vec<FunctionCall>> {
     alt((parse_python_block, parse_function_list))(input)
 }
 
+// Parse function calls that may be anywhere in the text with surrounding content
+pub fn parse_python_with_surrounding_text(input: &str) -> Result<Vec<FunctionCall>, String> {
+    let mut all_functions = Vec::new();
+    let mut remaining = input;
+    
+    // Continue searching through the text until we've processed it all
+    while !remaining.is_empty() {
+        // Try to find a Python block or function list starting anywhere in the remaining text
+        if let Some(start_pos) = find_next_pattern_start(remaining) {
+            // Skip to the start of the pattern
+            let from_pattern = &remaining[start_pos..];
+            
+            // Try to parse from this position
+            match parse_python_nom(from_pattern) {
+                Ok((rest, mut functions)) => {
+                    // Add the found functions
+                    all_functions.append(&mut functions);
+                    // Continue with the remaining text after this parse
+                    remaining = rest;
+                }
+                Err(_) => {
+                    // If parsing failed, skip this character and try again
+                    if remaining.len() > start_pos + 1 {
+                        remaining = &remaining[start_pos + 1..];
+                    } else {
+                        break;
+                    }
+                }
+            }
+        } else {
+            // No more patterns found
+            break;
+        }
+    }
+    
+    Ok(all_functions)
+}
+
+// Find the next position where a Python block or function list might start
+fn find_next_pattern_start(input: &str) -> Option<usize> {
+    // Look for either "<|python_start|>" or "["
+    let python_start = input.find("<|python_start|>");
+    let bracket_start = input.find('[');
+    
+    match (python_start, bracket_start) {
+        (Some(p), Some(b)) => Some(p.min(b)),
+        (Some(p), None) => Some(p),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
+}
+
 // Parse a string and return function calls, similar to the original parser
 pub fn parse_python_with_nom(source: &str) -> Result<Vec<FunctionCall>, String> {
-    match parse_python_nom(source) {
-        Ok((_, function_calls)) => Ok(function_calls),
-        Err(e) => Err(format!("Parse error: {:?}", e)),
+    // First try the new approach that handles surrounding text
+    match parse_python_with_surrounding_text(source) {
+        Ok(functions) if !functions.is_empty() => Ok(functions),
+        _ => {
+            // Fall back to the strict parser for backwards compatibility
+            match parse_python_nom(source) {
+                Ok((_, function_calls)) => Ok(function_calls),
+                Err(e) => Err(format!("Parse error: {:?}", e)),
+            }
+        }
     }
 }
 
@@ -299,31 +358,48 @@ pub fn parse_incremental(
     state.add_input(chunk);
     let input = &state.remainder;
 
-    match parse_python_nom(input) {
-        Ok((remainder, mut function_calls)) => {
-            // Update the state with new data
-            state.remainder = remainder.to_string();
-            state.parsed_functions.append(&mut function_calls);
-
-            // Return the complete list of parsed functions so far
-            Ok(state.parsed_functions.clone())
-        }
-        Err(nom::Err::Incomplete(_)) => {
-            // Not enough data yet, keep accumulating
+    // Use the new surrounding text parser for better compatibility
+    match parse_python_with_surrounding_text(input) {
+        Ok(function_calls) => {
+            // For incremental parsing, we need to be more careful about what's complete
+            // Check if we have complete function calls by trying the strict parser on parts
+            let mut new_functions = Vec::new();
+            
+            // Try to find complete patterns and parse them
+            for func in function_calls {
+                // Only add functions that weren't already parsed
+                if !state.parsed_functions.iter().any(|existing| 
+                    existing.name == func.name && existing.kwargs == func.kwargs) {
+                    new_functions.push(func);
+                }
+            }
+            
+            // Add new functions to our state
+            state.parsed_functions.extend(new_functions);
+            
+            // For streaming, we might want to clear some of the remainder to avoid reprocessing
+            // but for now, let's keep it simple
             Ok(state.parsed_functions.clone())
         }
         Err(e) => {
-            // Try to parse as much as possible
-            tracing::debug!("Incremental parse error: {:?}", e);
-
-            // Check if we can find any complete function calls
-            if let Ok((rem, functions)) = parse_function_list(input) {
-                state.remainder = rem.to_string();
-                state.parsed_functions.extend(functions);
+            // If the new parser fails, fall back to the old approach
+            tracing::debug!("Incremental parse error with surrounding text parser: {:?}", e);
+            // Try the strict parser as fallback
+            match parse_python_nom(input) {
+                Ok((remainder, mut function_calls)) => {
+                    state.remainder = remainder.to_string();
+                    state.parsed_functions.append(&mut function_calls);
+                    Ok(state.parsed_functions.clone())
+                }
+                Err(nom::Err::Incomplete(_)) => {
+                    // Not enough data yet, keep accumulating
+                    Ok(state.parsed_functions.clone())
+                }
+                Err(_) => {
+                    // Return what we have so far
+                    Ok(state.parsed_functions.clone())
+                }
             }
-
-            // Return what we have so far
-            Ok(state.parsed_functions.clone())
         }
     }
 }

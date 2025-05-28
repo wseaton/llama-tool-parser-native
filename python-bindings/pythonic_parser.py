@@ -18,7 +18,7 @@ from vllm.entrypoints.openai.tool_parsers.abstract_tool_parser import (
 from vllm.logger import init_logger
 from typing import List
 
-from llama_tool_parser_native import parse_tools
+from llama_tool_parser_native import parse_tools, IncrementalParser
 
 logger = init_logger(__name__)
 
@@ -34,6 +34,8 @@ class NativePythonicToolParser(ToolParser):
 
     def __init__(self, tokenizer: PreTrainedTokenizerBase):
         super().__init__(tokenizer)
+        self._incremental_parser = IncrementalParser()
+        self._last_parsed_count = 0
 
     # Rename for readability. This is NOT a tool id.
     @property
@@ -117,6 +119,38 @@ class NativePythonicToolParser(ToolParser):
         delta_token_ids: Sequence[int],
         request: ChatCompletionRequest,
     ) -> Union[DeltaMessage, None]:
-        raise NotImplementedError(
-            "Streaming tool call extraction is not yet implemented for NativePythonicToolParser."
-        )
+        # reset parser if this is a new request
+        if not previous_text and delta_text == current_text:
+            self._incremental_parser.reset()
+            self._last_parsed_count = 0
+
+        # parse new chunk
+        try:
+            all_parsed_tools = self._incremental_parser.parse_chunk(delta_text)
+            
+            # check if we have new complete tools
+            if len(all_parsed_tools) > self._last_parsed_count:
+                new_tools = all_parsed_tools[self._last_parsed_count:]
+                self._last_parsed_count = len(all_parsed_tools)
+                
+                # return delta message with new tool calls
+                return DeltaMessage(
+                    tool_calls=[
+                        ToolCall(
+                            id=f"call_{self.current_tool_index + i}",
+                            type="function",
+                            function=FunctionCall(
+                                name=tool["name"],
+                                arguments=json.dumps(
+                                    self._process_tool_arguments(tool["kwargs"])
+                                ),
+                            ),
+                        )
+                        for i, tool in enumerate(new_tools)
+                    ]
+                )
+            
+        except Exception as e:
+            logger.debug(f"streaming parse failed: {e}")
+        
+        return None

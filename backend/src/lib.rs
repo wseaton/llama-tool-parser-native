@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 // Import the parsers
 mod logos_parser;
-mod nom_parser;
+pub mod nom_parser;
 
 // Re-export the parsers
 pub use logos_parser::parse_python;

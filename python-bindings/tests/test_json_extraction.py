@@ -1,8 +1,10 @@
 from llama_tool_parser_native import parse_tools
 import json
+import pytest
 
 
-def test_multiple_tool_calls_json_extraction():
+@pytest.mark.parametrize("engine", ["nom", "logos"])
+def test_multiple_tool_calls_json_extraction(engine):
     """Test extraction of multiple tool calls from a JSON output."""
     # The JSON from the user's example
     json_data = {
@@ -48,7 +50,7 @@ def test_multiple_tool_calls_json_extraction():
     print(f"Content to parse: {content}")
 
     # Run the parser
-    tools = parse_tools(content)
+    tools = parse_tools(content, engine=engine)
     print(f"Extracted tools: {tools}")
 
     # Assertions
@@ -62,13 +64,13 @@ def test_multiple_tool_calls_json_extraction():
     assert "get_attractions" in tool_names
     assert "convert_currency" in tool_names
 
-    # Check some parameters
+    # Check some parameters (values are wrapped in type objects)
     weather_tool = next(
         tool for tool in tools if tool["name"] == "get_weather_forecast"
     )
-    assert weather_tool["kwargs"]["location"] == "Tokyo"
-    assert weather_tool["kwargs"]["days"] == 7.0
+    assert weather_tool["kwargs"]["location"]["String"] == "Tokyo"
+    assert weather_tool["kwargs"]["days"]["Number"] == 7.0
 
     hotels_tool = next(tool for tool in tools if tool["name"] == "search_hotels")
-    assert hotels_tool["kwargs"]["location"] == "Shinjuku"
-    assert hotels_tool["kwargs"]["budget_max_per_night"] == 50.0
+    assert hotels_tool["kwargs"]["location"]["String"] == "Shinjuku"
+    assert hotels_tool["kwargs"]["budget_max_per_night"]["Number"] == 50.0
