@@ -32,6 +32,22 @@ def test_incremental_parser():
     print(f"After chunk 5: {result5}")
     
     print("Final parsed functions:", parser.get_parsed_functions())
+    
+    # assertions to verify the incremental parser works correctly
+    assert result1 == []
+    assert result2 == []
+    assert result3 == []
+    assert result4 == []
+    assert len(result5) == 2
+    
+    final_functions = parser.get_parsed_functions()
+    assert len(final_functions) == 2
+    assert final_functions[0]["name"] == "search"
+    assert final_functions[0]["kwargs"]["query"]["String"] == "test"
+    assert final_functions[0]["kwargs"]["limit"]["Number"] == 5.0
+    assert final_functions[1]["name"] == "write_file"
+    assert final_functions[1]["kwargs"]["filename"]["String"] == "test.txt"
+    assert final_functions[1]["kwargs"]["content"]["String"] == "hello"
 
 def test_streaming_parser():
     """Test streaming with the pythonic parser."""
@@ -74,6 +90,47 @@ def test_streaming_parser():
         )
         
         print(f"Chunk {i+1} ({chunk[:20]}...): {result}")
+    
+    # assertions to verify the streaming parser works correctly
+    results = []
+    previous_text = ""
+    current_text = ""
+    
+    for i, chunk in enumerate(chunks):
+        previous_text = current_text
+        current_text = previous_text + chunk
+        
+        result = parser.extract_tool_calls_streaming(
+            previous_text=previous_text,
+            current_text=current_text,
+            delta_text=chunk,
+            previous_token_ids=[],
+            current_token_ids=[],
+            delta_token_ids=[],
+            request=request
+        )
+        results.append(result)
+    
+    # first 4 chunks should return None (no complete functions yet)
+    assert results[0] is None
+    assert results[1] is None
+    assert results[2] is None
+    assert results[3] is None
+    
+    # final chunk should return DeltaMessage with 2 tool calls
+    assert results[4] is not None
+    assert hasattr(results[4], 'tool_calls')
+    assert len(results[4].tool_calls) == 2
+    
+    # verify the tool calls content
+    tool_calls = results[4].tool_calls
+    assert tool_calls[0].function.name == "search"
+    assert '"query": "test"' in tool_calls[0].function.arguments
+    assert '"limit": 5.0' in tool_calls[0].function.arguments
+    
+    assert tool_calls[1].function.name == "write_file"
+    assert '"filename": "test.txt"' in tool_calls[1].function.arguments
+    assert '"content": "hello"' in tool_calls[1].function.arguments
 
 if __name__ == "__main__":
     test_incremental_parser()

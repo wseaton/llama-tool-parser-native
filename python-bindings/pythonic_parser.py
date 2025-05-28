@@ -6,7 +6,9 @@ from transformers import PreTrainedTokenizerBase
 
 from vllm.entrypoints.openai.protocol import (
     ChatCompletionRequest,
+    DeltaFunctionCall,
     DeltaMessage,
+    DeltaToolCall,
     ExtractedToolCallInformation,
     FunctionCall,
     ToolCall,
@@ -136,10 +138,11 @@ class NativePythonicToolParser(ToolParser):
                 # return delta message with new tool calls
                 return DeltaMessage(
                     tool_calls=[
-                        ToolCall(
+                        DeltaToolCall(
                             id=f"call_{self.current_tool_index + i}",
                             type="function",
-                            function=FunctionCall(
+                            index=self.current_tool_index + i,
+                            function=DeltaFunctionCall(
                                 name=tool["name"],
                                 arguments=json.dumps(
                                     self._process_tool_arguments(tool["kwargs"])
