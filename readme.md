@@ -42,3 +42,57 @@ The tool calling parser has been tested for quality against the BFCLv3 leaderboa
 |----|-----------------------------------|----------------|-----------|-----------------|-------------------|-------------------|----------------------------|---------------------|-------------------|
 |1   |Llama-4-Scout-17B-16E-Instruct (FC)|58.69%          |75.57%     |81.40%           |74.36%             |75.00%             |66.67%                      |32.09%               |94.44%             |
 |2   |Llama-3.2-3B-Instruct (FC)         |55.18%          |63.51%     |65.12%           |64.20%             |18.75%             |45.83%                      |41.72%               |88.89%             |
+
+## Streaming Support
+
+Yes, it supports streamed responses through SSE:
+
+```
+curl -X POST http://localhost:8181/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "model": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is the weather like in New York City?"
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "Get the current weather for a given location",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "string",
+                "description": "The city and state, e.g. San Francisco, CA"
+              },
+              "unit": {
+                "type": "string",
+                "enum": ["celsius", "fahrenheit"],
+                "description": "Temperature unit"
+              }
+            },
+            "required": ["location"]
+          }
+        }
+      }
+    ],
+    "stream": true,
+    "temperature": 0.7,
+    "max_tokens": 1000
+  }'
+
+
+  
+data: {"id":"chatcmpl-0fa09c781bba4d66b457b734484ee08a","object":"chat.completion.chunk","created":1748465656,"model":"meta-llama/Llama-4-Scout-17B-16E-Instruct","choices":[{"index":0,"delta":{"role":"assistant","content":""},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-0fa09c781bba4d66b457b734484ee08a","object":"chat.completion.chunk","created":1748465656,"model":"meta-llama/Llama-4-Scout-17B-16E-Instruct","choices":[{"index":0,"delta":{"tool_calls":[{"id":"call_-1","type":"function","index":-1,"function":{"name":"get_weather","arguments":"{\"location\": \"New York City\"}"}}]}}]}
+
+data: [DONE]
+```
